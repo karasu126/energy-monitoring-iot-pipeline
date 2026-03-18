@@ -1,11 +1,11 @@
 
 ---
 
-# Cloud IoT Workshop
+# Energy Monitoring IoT Pipeline
 
-A hands-on workshop demonstrating a **cloud-based IoT telemetry pipeline** using managed services and Python-based device simulation.
+A hands-on project demonstrating a **cloud-based IoT energy monitoring pipeline** using managed services and Python-based device simulation.
 
-The workshop simulates a fleet of IoT devices sending telemetry to a cloud message broker, which is then ingested into a time-series database and visualized using Grafana.
+The project simulates a fleet of energy monitoring devices sending electrical telemetry to a cloud message broker, which is then ingested into a time-series database and visualized using Grafana.
 
 ---
 
@@ -37,37 +37,34 @@ Producer(s) → CloudAMQP Queue → Consumer → InfluxDB → Grafana
 
 Each component has a clearly defined role:
 
-| Component        | Role                                         |
-| ---------------- | -------------------------------------------- |
-| Python Producers | Simulated IoT devices sending telemetry      |
-| CloudAMQP        | Managed message broker buffering device data |
-| Python Consumer  | Reads queue messages and stores them         |
-| InfluxDB 3       | Time-series database for telemetry           |
-| Grafana          | Visualization dashboards                     |
+| Component        | Role                                                        |
+| ---------------- | ----------------------------------------------------------- |
+| Python Producers | Simulated energy monitoring devices sending telemetry       |
+| CloudAMQP        | Managed message broker buffering device data                |
+| Python Consumer  | Reads queue messages and stores them                        |
+| InfluxDB 3       | Time-series database for electrical telemetry               |
+| Grafana          | Visualization dashboards for energy monitoring              |
 
 ---
 
 # Project Structure
 
 ```
-cloud-iot-workshop/
-│
-├── requirements.txt
-├── .env.example
+.
+├── Flow Diagram.png
 ├── README.md
+├── requirements.txt
+├── .env
 │
-├── scripts/
-│   ├── test_broker_connection.py
-│   └── test_influx_write.py
+├── cheshi-iot/
+│   ├── fleet_device_simulator.py
+│   ├── amqp_to_influx3.py
+│   ├── diagram.json
+│   └── sketch.ino
 │
-├── producers/
-│   ├── single_device_producer.py
-│   └── fleet_device_simulator.py
-│
-└── consumers/
-    ├── queue_message_logger.py
-    ├── minimal_amqp_to_influx.py
-    └── amqp_to_influx_service.py
+└── scripts/
+    ├── test_broker_connection.py
+    └── test_influx_write.py
 ```
 
 ---
@@ -124,10 +121,10 @@ Dependencies:
 
 # Environment Configuration
 
-Create a `.env` file from the template.
+Create a `.env` file at the project root.
 
 ```bash
-cp .env.example .env
+touch .env
 ```
 
 Edit `.env`:
@@ -137,7 +134,7 @@ CLOUDAMQP_URL=amqps://USERNAME:PASSWORD@dog.lmq.cloudamqp.com/VHOST
 
 INFLUX3_HOST=https://us-east-1-1.aws.cloud2.influxdata.com
 INFLUX3_ORG=Dev
-INFLUX3_DATABASE=room-monitoring
+INFLUX3_DATABASE=energy-monitoring
 INFLUX3_TOKEN=YOUR_INFLUX_TOKEN
 ```
 
@@ -213,9 +210,9 @@ STEP 3: Query results
 
 ---
 
-# Producer Scripts
+# Device Simulator
 
-Producer scripts simulate IoT devices sending telemetry.
+Simulates energy monitoring devices sending electrical telemetry.
 
 Queue used:
 
@@ -225,46 +222,45 @@ iot_telemetry
 
 ---
 
-## single_device_producer.py
+## fleet_device_simulator.py
 
-Simulates one IoT device.
+Simulates multiple energy monitoring devices concurrently.
+
+Features:
+
+* multiple device threads
+* randomized electrical telemetry
+* random publish intervals
+* per-device accumulated energy (kWh)
+
+Device types simulated:
+
+```
+smart-energy-meter
+solar-inverter-monitor
+ev-charging-monitor
+```
 
 Telemetry example:
 
 ```json
 {
-  "device_id": "device-001",
+  "device_id": "meter-001",
   "region": "north",
-  "temperature": 29.4,
-  "humidity": 81.2,
-  "soil_moisture": 53.1,
-  "battery": 87,
-  "signal_rssi": -68
+  "device_type": "smart-energy-meter",
+  "voltage": 230.5,
+  "current": 4.2,
+  "power": 967.3,
+  "energy": 15.6,
+  "power_factor": 0.94,
+  "frequency": 50.0
 }
 ```
 
 Run:
 
 ```bash
-python producers/single_device_producer.py
-```
-
----
-
-## fleet_device_simulator.py
-
-Simulates multiple devices concurrently.
-
-Features:
-
-* multiple device threads
-* randomized telemetry
-* random publish intervals
-
-Run:
-
-```bash
-python producers/fleet_device_simulator.py
+python cheshi-iot/fleet_device_simulator.py
 ```
 
 Default simulation:
@@ -276,68 +272,21 @@ Default simulation:
 Example output:
 
 ```
-[PUB] device-005 -> {...}
-[PUB] device-012 -> {...}
+[PUB] meter-005 -> {...}
+[PUB] meter-012 -> {...}
 ```
 
 ---
 
-# Consumer Scripts
+# Ingestion Service
 
-Consumers read queue messages and process them.
-
----
-
-## queue_message_logger.py
-
-Simple debugging consumer.
-
-Purpose:
-
-Inspect raw messages in the queue.
-
-Run:
-
-```bash
-python consumers/queue_message_logger.py
-```
-
-Output example:
-
-```
-[MSG] {"device_id":"device-001",...}
-```
+Consumes queue messages and writes them to InfluxDB.
 
 ---
 
-## minimal_amqp_to_influx.py
+## amqp_to_influx3.py
 
-Minimal ingestion pipeline.
-
-Workflow:
-
-```
-AMQP Queue → InfluxDB
-```
-
-Stores limited fields:
-
-* device_id
-* region
-* temperature
-* humidity
-
-Run:
-
-```bash
-python consumers/minimal_amqp_to_influx.py
-```
-
----
-
-## amqp_to_influx_service.py
-
-Full ingestion service used for the final workshop.
+Full ingestion service for the energy monitoring pipeline.
 
 Workflow:
 
@@ -353,24 +302,25 @@ Write to database
 
 Stored fields:
 
-| Tag         | Field         |
-| ----------- | ------------- |
-| device_id   | temperature   |
-| region      | humidity      |
-| device_type | soil_moisture |
-|             | battery       |
-|             | signal_rssi   |
+| Tag         | Field        |
+| ----------- | ------------ |
+| device_id   | voltage      |
+| region      | current      |
+| device_type | power        |
+|             | energy       |
+|             | power_factor |
+|             | frequency    |
 
 Run:
 
 ```bash
-python consumers/amqp_to_influx_service.py
+python cheshi-iot/amqp_to_influx3.py
 ```
 
 Output:
 
 ```
-[WRITE] device-004 -> InfluxDB
+[WRITE] meter-004 -> InfluxDB | V=230.5V  I=4.2A  P=967.3W  PF=0.94
 ```
 
 ---
@@ -386,7 +336,7 @@ Open two terminals.
 Start ingestion service.
 
 ```bash
-python consumers/amqp_to_influx_service.py
+python cheshi-iot/amqp_to_influx3.py
 ```
 
 ---
@@ -396,7 +346,7 @@ python consumers/amqp_to_influx_service.py
 Start fleet simulator.
 
 ```bash
-python producers/fleet_device_simulator.py
+python cheshi-iot/fleet_device_simulator.py
 ```
 
 ---
@@ -406,13 +356,13 @@ python producers/fleet_device_simulator.py
 Producer output:
 
 ```
-[PUB] device-003 -> {...}
+[PUB] meter-003 -> {...}
 ```
 
 Consumer output:
 
 ```
-[WRITE] device-003 -> InfluxDB
+[WRITE] meter-003 -> InfluxDB
 ```
 
 CloudAMQP:
@@ -439,33 +389,46 @@ Example SQL queries.
 
 ```sql
 SELECT *
-FROM iot_telemetry
+FROM energy_telemetry
 ORDER BY time DESC
 LIMIT 20;
 ```
 
 ---
 
-## Average temperature by region
+## Average power consumption by region
 
 ```sql
 SELECT
-region,
-AVG(temperature)
-FROM iot_telemetry
+  region,
+  AVG(power)
+FROM energy_telemetry
 GROUP BY region;
 ```
 
 ---
 
-## Battery health
+## Energy consumption per device
 
 ```sql
 SELECT
-device_id,
-battery
-FROM iot_telemetry
-ORDER BY battery ASC
+  device_id,
+  MAX(energy) AS total_energy_kwh
+FROM energy_telemetry
+GROUP BY device_id;
+```
+
+---
+
+## Voltage stability monitoring
+
+```sql
+SELECT
+  time,
+  device_id,
+  voltage
+FROM energy_telemetry
+ORDER BY time DESC
 LIMIT 20;
 ```
 
@@ -477,7 +440,7 @@ Recommended panels.
 
 ---
 
-## Temperature over time
+## Voltage monitoring over time
 
 ```
 time series chart
@@ -486,28 +449,30 @@ time series chart
 Query:
 
 ```sql
-SELECT time, temperature
-FROM iot_telemetry
+SELECT time, device_id, voltage
+FROM energy_telemetry
+ORDER BY time DESC
 ```
 
 ---
 
-## Battery by device
+## Active power per device
 
 ```
-bar gauge
+time series chart
 ```
 
 Query:
 
 ```sql
-SELECT device_id, battery
-FROM iot_telemetry
+SELECT time, device_id, power
+FROM energy_telemetry
+ORDER BY time DESC
 ```
 
 ---
 
-## Average temperature by region
+## Energy consumption per device
 
 ```
 bar chart
@@ -516,10 +481,73 @@ bar chart
 Query:
 
 ```sql
-SELECT region, AVG(temperature)
-FROM iot_telemetry
-GROUP BY region
+SELECT device_id, MAX(energy) AS total_energy_kwh
+FROM energy_telemetry
+GROUP BY device_id
 ```
+
+---
+
+## Power factor efficiency
+
+```
+gauge
+```
+
+Query:
+
+```sql
+SELECT device_id, AVG(power_factor) AS avg_power_factor
+FROM energy_telemetry
+GROUP BY device_id
+```
+
+---
+
+## Grid frequency stability
+
+```
+time series chart
+```
+
+Query:
+
+```sql
+SELECT time, AVG(frequency) AS avg_frequency
+FROM energy_telemetry
+GROUP BY time
+ORDER BY time DESC
+```
+
+---
+
+# Grafana Setup (Self-Hosted)
+
+Grafana is deployed locally using Docker Compose.
+
+```bash
+cd grafana
+docker compose up -d
+```
+
+Access:
+
+```
+http://localhost:3000
+```
+
+Configure datasource:
+
+* Type: **Flight SQL**
+* Host: InfluxDB Cloud host (without `https://`)
+* Port: `443`
+* Auth Type: token
+* Token: `INFLUX3_TOKEN`
+* Require TLS/SSL: enabled
+* Metadata key: `database` → value: `INFLUX3_DATABASE`
+
+> InfluxDB 3 uses the Apache Arrow Flight SQL protocol. Use the
+> `influxdata-flightsql-datasource` plugin, not the standard InfluxDB datasource.
 
 ---
 
@@ -573,26 +601,41 @@ Check:
 
 ---
 
-# Workshop Agenda (Example)
+# Electrical Telemetry Reference
 
-Total duration: **2 hours**
+## Telemetry fields
 
-| Time | Activity                 |
-| ---- | ------------------------ |
-| 0:00 | Architecture overview    |
-| 0:15 | Broker test              |
-| 0:30 | Single device simulation |
-| 0:45 | Fleet simulation         |
-| 1:00 | Ingestion service        |
-| 1:20 | InfluxDB queries         |
-| 1:40 | Grafana dashboards       |
-| 2:00 | Q&A                      |
+| Field        | Description                        | Unit |
+| ------------ | ---------------------------------- | ---- |
+| voltage      | Electrical voltage                 | V    |
+| current      | Electrical current                 | A    |
+| power        | Active power consumption (P = V×I) | W    |
+| energy       | Accumulated energy usage           | kWh  |
+| power_factor | Efficiency of electrical load      | —    |
+| frequency    | Grid frequency                     | Hz   |
+
+## Power formula
+
+```
+P = V × I
+```
+
+Where P = Power (Watts), V = Voltage (Volts), I = Current (Amperes).
+
+## Simulated value ranges (PLN 220V / 50Hz standard)
+
+| Field        | Min   | Max   |
+| ------------ | ----- | ----- |
+| voltage      | 218 V | 242 V |
+| current      | 0.5 A | 16 A  |
+| power_factor | 0.80  | 0.99  |
+| frequency    | 49.8  | 50.2  |
 
 ---
 
 # Summary
 
-This workshop demonstrates a scalable IoT telemetry pipeline using:
+This project demonstrates a scalable IoT energy monitoring pipeline using:
 
 * Python device simulation
 * managed AMQP messaging
